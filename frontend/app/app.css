@@ -99,6 +99,7 @@ body {
 }
 .chat-thread-item {
   margin-bottom: 0.25rem;
+  border-radius: 6px;
 }
 .chat-thread-link {
   display: block;
@@ -117,7 +118,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chat-thread-link:hover {
+.chat-thread-item:hover {
   background: var(--bg-hover);
 }
 
@@ -259,3 +260,29 @@ body {
   background: var(--bg-button-disabled);
   cursor: not-allowed;
 }
+.chat-thread-item-content{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-thread-item-content a{
+  width: fit-content;
+}
+
+.chat-thread-item-content button{
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  transition: 0.2s ease;
+  margin-right: 0.75rem;
+  border: none;
+  border-radius: 5px;
+  background-color: rgba(127, 0, 0, 0.745);
+}
+
+.chat-thread-item-content:hover button{
+  opacity: 1;
+}
+
+

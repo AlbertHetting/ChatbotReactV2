@@ -1,104 +1,127 @@
-function Sidebarfooter() {
+/**
+ * Sidebar Components
+ *
+ * This file demonstrates React component organization and modularity:
+ * 1. Multiple related components in one file
+ * 2. Import/export patterns for sharing components
+ * 3. Component composition and hierarchy
+ * 4. File organization for better project structure
+ */
 
-    return(
-     <div className="sidebar-footer">
-          <a href="/profile" className="user-profile">
-            <img
-              src="https://ui-avatars.com/api/?name=Batman&background=0D0D0D&color=fff&size=40"
-              alt="User avatar"
-              className="user-avatar"
-              width={30}
-              height={30}
-            />
-            <span className="user-name">Batman</span>
-          </a>
-        </div>
-    );
-
-}
-
-function Sidebarheader(){
-    return(
+/**
+ * SidebarHeader Component
+ *
+ * Handles the top section of the sidebar with title and new chat button.
+ * This component demonstrates single responsibility and reusability.
+ */
+function SidebarHeader() {
+  return (
     <div className="sidebar-header">
-          <h2 className="chatbot-title">Chatbot</h2>
-          <a href="/chat/new" className="new-chat-btn">
-            + New
-          </a>
-        </div>
-    );
+      <h2 className="chatbot-title">Chatbot</h2>
+      <a href="/chat/new" className="new-chat-btn">
+        + New
+      </a>
+    </div>
+  );
 }
 
-function Sidebarlist(){
+/**
+ * ChatThreadItem Component
+ *
+ * A reusable component for individual chat thread links.
+ * Demonstrates props usage: receives href and title from parent component.
+ * This pattern allows the same component structure with different data.
+ */
+function ChatThreadItem({thread, onDeleteThread}) {
 
-            function ChatThreadItem(props) {
+const {id, href, title} = thread;
 
-            return <a href={props.href} className="chat-thread-link">{props.title}</a>;
-            }
-        return(
-        <nav className="chat-threads-list" aria-label="Chat threads">
-          <ul>
-            <li className="chat-thread-item">
-            <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-              <a href="/chat/best-pizza-toppings" className="chat-thread-link">
-                What are the best pizza toppings?
-              </a>
-            </li>
-            <li className="chat-thread-item">
-           <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-            <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-            <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-            <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-             <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-             <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-             <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-              <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-            <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-              <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-             <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-            <li className="chat-thread-item">
-             <ChatThreadItem href="/chat/why-sky-blue" title="Why is the sky blue?" />
-            </li>
-          </ul>
-        </nav>
-        );
-        }
+const handeDeleteClick = (event) => {
+  event.stopPropagation();
+  if (onDeleteThread){
+    onDeleteThread(id)
+  }
+}
+
+  return (
+    <li className="chat-thread-item">
+      <div className="chat-thread-item-content">
+      <a href={href} className="chat-thread-link">
+        {title}
+      </a>
+      <button onClick={handeDeleteClick} type="button" aria-label="delete-button"></button>
+      </div>
+    </li>
+  );
+}
 
 
+/**
+ * ChatThreadsList Component
+ *
+ * Now receives data via PROP DRILLING! This demonstrates:
+ * 1. PROP DRILLING: Data flows Layout -> Sidebar -> ChatThreadsList
+ * 2. COMPONENT REUSABILITY: Can work with any threads array passed as props
+ * 3. DATA FLOW: Shows how data moves through multiple component layers
+ * 4. CONSISTENT PATTERNS: Uses same props.data.map() pattern as ChatMessages
+ */
+function ChatThreadsList({threads = [], onDeleteThread}) {
+  return (
+    <nav className="chat-threads-list" aria-label="Chat threads">
+      <ul>
+        {/* Using props.threads - data passed down through prop drilling! */}
+        {threads.map((thread) => (
+          <ChatThreadItem
+            key={thread.id}
+            href={thread.href}
+            title={thread.title}
+            onDeleteThread={onDeleteThread}
+          />
+        ))}
+      </ul>
+    </nav>
+  );
+}
 
+/**
+ * SidebarFooter Component
+ *
+ * Handles the user profile section at the bottom of the sidebar.
+ * Demonstrates component modularity and independence.
+ */
+function SidebarFooter() {
+  return (
+    <div className="sidebar-footer">
+      <a href="/profile" className="user-profile">
+        <img
+          src="https://ui-avatars.com/api/?name=Batman&background=0D0D0D&color=fff&size=40"
+          alt="User avatar"
+          className="user-avatar"
+          width={30}
+          height={30}
+        />
+        <span className="user-name">Batman</span>
+      </a>
+    </div>
+  );
+}
 
-export default function SideBar(){
-
-    return(
-          <aside className="sidebar">
-  
-        <Sidebarheader/>
-        {/* Chat threads list */}
-        <Sidebarlist />
-        {/* Sidebar footer */}
-        <Sidebarfooter/>
-      </aside>
-    );
+/**
+ * Main Sidebar Component
+ *
+ * Now demonstrates PROP DRILLING - receiving props and passing them down:
+ * 1. PROPS ACCEPTANCE: Receives 'threads' prop from Layout parent
+ * 2. PROP DRILLING: Passes threads down to ChatThreadsList child
+ * 3. INTERMEDIATE COMPONENT: Acts as bridge between Layout and ChatThreadsList
+ * 4. COMPONENT COMPOSITION: Combines multiple components while managing data flow
+ */
+export default function Sidebar({threads, onDeleteThread}) {
+  return (
+    <aside className="sidebar">
+      {/* Component composition with prop drilling */}
+      <SidebarHeader />
+      <ChatThreadsList threads={threads} onDeleteThread={onDeleteThread} />
+      <SidebarFooter />
+    </aside>
+  );
 }
