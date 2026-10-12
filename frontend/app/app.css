@@ -92,6 +92,37 @@ body {
   flex: 1;
   overflow-y: auto;
 }
+
+/* Search input container */
+.search-container {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.search-input {
+  width: 100%;
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--shadow-focus);
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+}
+
 .chat-threads-list ul {
   list-style: none;
   padding: 0.5em;
@@ -99,27 +130,72 @@ body {
 }
 .chat-thread-item {
   margin-bottom: 0.25rem;
-  border-radius: 6px;
 }
+
+/* Chat thread item container with delete button */
+.chat-thread-item-content {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  transition: background 0.1s ease;
+  position: relative;
+}
+.chat-thread-item-content:hover {
+  background: var(--bg-hover);
+}
+
 .chat-thread-link {
   display: block;
-  width: 100%;
+  flex: 1;
   background: transparent;
   border: none;
-  border-radius: 6px;
   padding: 0.75rem;
   text-align: left;
   font-size: 0.875rem;
   color: var(--text-primary);
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.1s ease;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chat-thread-item:hover {
-  background: var(--bg-hover);
+
+/* Delete button - hidden by default, shown on hover */
+.delete-thread-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.5rem;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    background 0.1s ease;
+}
+
+/* Show delete button on thread item hover */
+.chat-thread-item-content:hover .delete-thread-btn {
+  opacity: 1;
+}
+
+/* Delete button hover state */
+.delete-thread-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* Focus styles for accessibility */
+.delete-thread-btn:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+  opacity: 1;
 }
 
 /* Sidebar footer */
@@ -260,29 +336,7 @@ body {
   background: var(--bg-button-disabled);
   cursor: not-allowed;
 }
-.chat-thread-item-content{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+
+.chat-thread-link-active {
+  font-weight: bold;
 }
-
-.chat-thread-item-content a{
-  width: fit-content;
-}
-
-.chat-thread-item-content button{
-  width: 20px;
-  height: 20px;
-  opacity: 0;
-  transition: 0.2s ease;
-  margin-right: 0.75rem;
-  border: none;
-  border-radius: 5px;
-  background-color: rgba(127, 0, 0, 0.745);
-}
-
-.chat-thread-item-content:hover button{
-  opacity: 1;
-}
-
-
