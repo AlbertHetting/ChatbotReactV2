@@ -4,65 +4,35 @@ import Sidebar from "../components/Sidebar.jsx";
 import { useLoaderData } from "react-router";
 
 export async function clientLoader() {
-  await new Promise((resolve) => setTimeout(resolve, 300));
 
-  const mockThread = [
-    {
-      id: 1,
-      title: "How to learn programming?",
-    },
-    {
-      id: 2,
-      title: "What are the best pizza toppings?",
-    },
-    {
-      id: 3,
-      title: "Can you explain quantum physics?",
-    },
-    {
-      id: 4,
-      href: "/chat/morning-routine-ideas",
-      title: "Help me create a morning routine",
-    },
-    {
-      id: 5,
-      title: "What should I do this weekend?",
-    },
-    { id: 6, href: "/chat/why-sky-blue", title: "Why is the sky blue?" },
-    {
-      id: 7,
-      title: "How do I learn a new language?",
-    },
-    {
-      id: 8,
-      title: "What's the meaning of life?",
-    },
-    { id: 9, href: "/chat/funny-joke-please", title: "Tell me a funny joke" },
-    {
-      id: 10,
-      title: "What's a healthy dinner idea?",
-    },
-    {
-      id: 11,
-      title: "Recommend me a good book",
-    },
-    {
-      id: 12,
-      title: "Give me a creative writing prompt",
-    },
-    {
-      id: 13,
-      title: "My computer is slow, help?",
-    },
-    {
-      id: 14,
-      title: "Tell me an interesting history fact",
-    },
-  ];
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  return {
-    threads: mockThread,
-  };
+  
+
+
+  const url = `${supabaseUrl}/rest/v1/threads?select=*&order=created_at.desc`;
+
+  console.log("MY URL IS:", url);
+  console.log("MY KEY:", supabaseKey);
+
+  const response = await fetch(url, {
+    headers:{
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`
+    }
+  })
+
+  if (!response.ok){
+    throw new Error(`failed to fetch threads ${response.status}`)
+  }
+
+
+  const threads = await response.json();
+
+  console.log(import.meta.env.VITE_SUPABASE_URL)
+
+  return { threads }
 }
 
 
