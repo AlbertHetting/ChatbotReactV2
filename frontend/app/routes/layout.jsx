@@ -65,16 +65,7 @@ export async function clientLoader() {
   };
 }
 
-/**
- * Layout Component
- *
- * Now demonstrates STATE MANAGEMENT and CALLBACK PATTERNS:
- * 1. USESTATE HOOK: Managing dynamic data that changes over time
- * 2. STATE UPDATES: Immutable updates using array filter method
- * 3. CALLBACK PROPS: Passing functions down to child components
- * 4. DATA FLOW: State updates flow up, data flows down
- * 5. COMPONENT COMMUNICATION: Parent-child communication via callbacks
- */
+
 export default function Layout() {
   const { threads } = useLoaderData();
 
