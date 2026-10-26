@@ -1,7 +1,15 @@
 import React from "react";
 import { ChatMessages, ChatInput } from "../components/Chat.jsx";
 
-
+/**
+ * INITIAL MESSAGES DATA
+ *
+ * This data will be moved to component state to demonstrate:
+ * 1. STATE MANAGEMENT: Converting static data to dynamic state
+ * 2. STATE UPDATES: Adding new messages through user interaction
+ * 3. LIFTING STATE UP: Managing state in parent component
+ * 4. CALLBACK PROPS: Passing state update functions to child components
+ */
 const initialMessages = [
   {
     id: 1,
@@ -60,7 +68,16 @@ const initialMessages = [
   },
 ];
 
-
+/**
+ * Home Component (Chat Page)
+ *
+ * Now demonstrates STATE MANAGEMENT and CALLBACK PROPS:
+ * 1. STATE HOOKS: Using useState to manage dynamic messages array
+ * 2. CALLBACK FUNCTIONS: Creating functions to update state
+ * 3. PROPS PASSING: Passing both data and functions to child components
+ * 4. STATE LIFTING: Managing shared state in the parent component
+ * 5. IMMUTABLE UPDATES: Using spread operator to update state arrays
+ */
 export default function Home() {
   // STATE: Convert static data to dynamic state
   const [messages, setMessages] = React.useState(initialMessages);
