@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router";
+import { Form } from "react-router";
 
 /**
  * Chat Components
@@ -57,59 +57,28 @@ function ChatMessages({ messages = [] }) {
  * ChatInput Component
  *
  * Form component that handles user input for sending messages.
- * Now demonstrates CALLBACK PROPS and UNCONTROLLED FORMS:
- * 1. PROPS DESTRUCTURING: Receiving callback function from parent
- * 2. CALLBACK PROPS: Using parent's function to update shared state
- * 3. UNCONTROLLED FORMS: Reading form data on submission
- * 4. FORM VALIDATION: Basic empty message validation
- * 5. STATE MANAGEMENT: Managing local isSubmitting state
+ * Now uses React Router Form for data mutations:
+ * 1. FORM COMPONENT: React Router's Form for seamless data mutations
+ * 2. METHOD="POST": Triggers the route's clientAction when submitted
+ * 3. AUTOMATIC REVALIDATION: Data refreshes after successful submission
+ * 4. NO STATE NEEDED: Form clears and data reloads automatically
+ * 5. DECLARATIVE: Just render the form, React Router handles the rest
  */
-function ChatInput({ onAddMessage }) {
-  // LOCAL STATE: Managing form submission state
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-  // EVENT HANDLER: Handle form submission with callback
-  const handleSubmit = async (event) => {
-    event.preventDefault(); // Prevent default form submission
-
-    // Get form data using FormData API (uncontrolled approach)
-    const formData = new FormData(event.target);
-    const message = formData.get("message").trim();
-
-    // Basic validation
-    if (!message) {
-      return; // Don't submit empty messages
-    }
-
-    setIsSubmitting(true);
-
-    // Call parent's callback function to add message
-    if (onAddMessage) {
-      onAddMessage(message);
-    }
-
-    // Clear the form
-    event.target.reset();
-
-    // Simulate async operation (like API call)
-    setTimeout(() => {
-      setIsSubmitting(false);
-    }, 1000);
-  };
-
+function ChatInput() {
   return (
     <div className="chat-input-container">
-      <form className="chat-input-wrapper" onSubmit={handleSubmit}>
+      <Form method="post" className="chat-input-wrapper">
         <textarea
           name="message"
           className="chat-input"
           placeholder="Type your message here..."
           rows="1"
+          required
         />
-        <button className="send-button" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Sending..." : "Send"}
+        <button className="send-button" type="submit">
+          Send
         </button>
-      </form>
+      </Form>
     </div>
   );
 }

@@ -1,71 +1,225 @@
-import { ChatMessages, ChatInput } from "../components/Chat";
-import { useLoaderData } from "react-router";
+import {
+  useLoaderData,
+  useActionData,
+  Link,
+  useRouteError,
+  href,
+  useNavigation,
+} from "react-router";
+import { ChatMessages, ChatInput } from "../components/Chat.jsx";
 
-const defaultMessages = [
-  {
-    id: 1,
-    type: "user",
-    content: "Random Message!",
-  },
-  {
-    id: 2,
-    type: "bot",
-    content: "Another random message!",
-  },
-];
+/**
+ * ERROR BOUNDARY COMPONENT
+ *
+ * Handles errors that occur in this route, including 404 errors.
+ * Key concepts:
+ * 1. ERROR BOUNDARY: React Router's built-in error handling mechanism
+ * 2. useRouteError() HOOK: Access the error object thrown in loader/action
+ * 3. 404 HANDLING: Special case for missing threads (deleted or never existed)
+ * 4. USER FEEDBACK: Show helpful message and recovery options
+ *
+ * This component renders when:
+ * - Thread is not found (404 error)
+ * - API request fails
+ * - Any error is thrown in loader or action
+ */
+export function ErrorBoundary() {
+  const error = useRouteError();
 
-export async function clientLoader({ params }) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  // Check if this is a 404 error (thread not found)
+  const isNotFound = error?.status === 404;
 
-  const threadUrl = `${supabaseUrl}threads?id=eq.${params.threadId}&select=*`;
-
-  const threadResponse = await fetch(threadUrl, {
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-    },
-  });
-
-  if (!threadResponse.ok) {
-    console.error("SUPABASE 401 DETAILS");
-    throw new Error(`failed to fetch threads ${threadResponse.status}`);
-  }
-
-  const threadData = await threadResponse.json();
-  const thread = threadData[0];
-
-  const messagesUrl = `${supabaseUrl}messages?thread_id=eq.${params.threadId}&select=*&order=created_at.asc`;
-
-  const messageResponse = await fetch(messagesUrl, {
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-    },
-  });
-
-  if (!messageResponse.ok) {
-    console.error("SUPABASE ERROR 404");
-    throw new Error(`Failed to fetch messages: ${messageResponse.status}`);
-  }
-
-  const messages = await messageResponse.json();
-
-  return { thread, messages };
+  return (
+    <div className="chat-container">
+      <div className="chat-thread-header">
+        <h2>{isNotFound ? "Thread Not Found" : "Something Went Wrong"}</h2>
+        <p>
+          {isNotFound
+            ? "This conversation may have been deleted or never existed."
+            : error?.message || "An unexpected error occurred."}
+        </p>
+        <p>
+          <Link to={href("/chat/new")}>Start a new chat</Link>
+        </p>
+      </div>
+    </div>
+  );
 }
 
-export default function chatThread() {
-  const { threadId, messages } = useLoaderData();
+/**
+ * CLIENT LOADER FUNCTION
+ *
+ * Fetches thread details and messages from our custom API.
+ * Key concepts:
+ * 1. ASYNC FUNCTION: Can perform asynchronous operations like data fetching
+ * 2. PARAMS ACCESS: Receives route parameters (like threadId) via the params object
+ * 3. MULTIPLE API CALLS: Fetches both thread metadata and messages
+ * 4. SERVER-SIDE FILTERING: Our API handles filtering and sorting
+ * 5. ERROR HANDLING: Properly handle 404 and other errors
+ *
+ * The loader runs:
+ * - When you navigate to this route
+ * - When you refresh the page
+ * - When React Router revalidates data
+ */
+export async function clientLoader({ params }) {
+  const apiUrl = import.meta.env.VITE_API_URL;
 
-  const addMessage = (content) => {
-    console.log("message submitted", content);
+  // Fetch thread metadata from our API
+  // Our API returns a single object (not an array) for found threads
+  const threadUrl = `${apiUrl}/api/threads/${params.threadId}`;
+
+  const threadResponse = await fetch(threadUrl);
+
+  // Check for 404 specifically - thread doesn't exist
+  if (threadResponse.status === 404) {
+    throw new Response("Thread not found", { status: 404 });
+  }
+
+  // Check for other errors
+  if (!threadResponse.ok) {
+    throw new Error(`Failed to fetch thread: ${threadResponse.status}`);
+  }
+
+  // Our API returns the thread object directly (not in an array)
+  const thread = await threadResponse.json();
+
+  // Fetch messages for this thread
+  // Our API handles filtering by thread_id and sorting chronologically
+  const messagesUrl = `${apiUrl}/api/threads/${params.threadId}/messages`;
+
+  const messagesResponse = await fetch(messagesUrl);
+
+  if (!messagesResponse.ok) {
+    throw new Error(`Failed to fetch messages: ${messagesResponse.status}`);
+  }
+
+  const messages = await messagesResponse.json();
+
+  return {
+    thread,
+    messages,
   };
+}
+
+/**
+ * CLIENT ACTION FUNCTION
+ *
+ * Handles form submissions to create new messages using our custom API.
+ * Key concepts:
+ * 1. FORM DATA: Extract data from form submission
+ * 2. POST REQUEST: Send data to our API to create new message
+ * 3. AUTOMATIC REVALIDATION: React Router re-runs loader after action completes
+ * 4. SERVER-SIDE VALIDATION: Our API validates the data
+ *
+ * The action runs:
+ * - When a Form with method="post" is submitted
+ * - Before the loader re-runs (automatic revalidation)
+ */
+export async function clientAction({ params, request }) {
+  const apiUrl = import.meta.env.VITE_API_URL;
+
+  // Extract form data from the request
+  const formData = await request.formData();
+  const content = formData.get("message");
+
+  // Basic client-side validation (server will validate too)
+  if (!content || !content.trim()) {
+    return { error: "Message cannot be empty" };
+  }
+
+  // Create the message object
+  const newMessage = {
+    type: "user",
+    content: content.trim(),
+  };
+
+  // POST to our custom API to create the message
+  try {
+    const response = await fetch(
+      `${apiUrl}/api/threads/${params.threadId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newMessage),
+      },
+    );
+
+    // Check for validation errors (400)
+    if (response.status === 400) {
+      const error = await response.json();
+      return { error: error.error || "Invalid message data" };
+    }
+
+    // Check for other errors
+    if (!response.ok) {
+      return { error: `Failed to create message: ${response.status}` };
+    }
+
+    // Return success - loader will automatically revalidate
+    return { success: true };
+  } catch (error) {
+    return { error: error.message };
+  }
+}
+
+/**
+ * Chat Thread Route Component
+ *
+ * Displays a conversation thread with messages from the database.
+ * Now includes error handling from form submissions.
+ *
+ * Key concepts:
+ * 1. useLoaderData() HOOK: Accesses data returned from clientLoader
+ * 2. useActionData() HOOK: Accesses result returned from clientAction
+ * 3. ERROR DISPLAY: Shows validation or API errors to the user
+ * 4. USER FEEDBACK: Informs users when something goes wrong
+ */
+export default function ChatThread() {
+  // Access the thread and messages data from the loader
+  const { thread, messages } = useLoaderData();
+
+  // Access the action result (success or error)
+  const actionData = useActionData();
+
+  const navigation = useNavigation();
+
+  // Create an array to display, starting with messages from the database
+  let displayMessages = [...messages];
+
+  // If a form is being submitted and it has a "message" field,
+  // add it optimistically to the display
+  if (navigation.formData?.has("message")) {
+    // Create an optimistic user message
+    const optimisticUserMessage = {
+      id: "optimistic-user",
+      type: "user",
+      content: navigation.formData.get("message"),
+    };
+
+    // Create an optimistic bot "thinking" message
+    const optimisticBotMessage = {
+      id: "optimistic-bot",
+      type: "bot",
+      content: "AI is thinking...",
+    };
+
+    // Add both messages to the display array
+    displayMessages.push(optimisticUserMessage, optimisticBotMessage);
+  }
 
   return (
     <main className="chat-container">
-      <h2> Dette er: {threadId} </h2>
-      <ChatMessages messages={messages} />
-      <ChatInput onAddMessage={addMessage} />
+      <div className="chat-thread-header">
+        <h2>{thread.title}</h2>
+      </div>
+      <ChatMessages messages={displayMessages} />
+      <ChatInput />
+      {actionData?.error && (
+        <div className="error-message">{actionData.error}</div>
+      )}
     </main>
   );
 }
