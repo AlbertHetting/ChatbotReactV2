@@ -4,7 +4,7 @@ import {
   Link,
   useRouteError,
   href,
-  useNavigation,
+  Outlet,
 } from "react-router";
 import { ChatMessages, ChatInput } from "../components/Chat.jsx";
 
@@ -169,13 +169,21 @@ export async function clientAction({ params, request }) {
  * Chat Thread Route Component
  *
  * Displays a conversation thread with messages from the database.
- * Now includes error handling from form submissions.
+ * Now includes nested routing for editing thread title.
  *
  * Key concepts:
  * 1. useLoaderData() HOOK: Accesses data returned from clientLoader
  * 2. useActionData() HOOK: Accesses result returned from clientAction
- * 3. ERROR DISPLAY: Shows validation or API errors to the user
- * 4. USER FEEDBACK: Informs users when something goes wrong
+ * 3. NESTED ROUTES: Outlet component renders child routes
+ * 4. LINK NAVIGATION: Link to="edit" navigates to nested edit route
+ * 5. ERROR DISPLAY: Shows validation or API errors to the user
+ *
+ * Routing Structure:
+ * - /chat/:threadId → This component (view thread)
+ * - /chat/:threadId/edit → Edit form overlay (child route)
+ *
+ * The Outlet component renders the child route above the thread view,
+ * creating an overlay effect for the edit form.
  */
 export default function ChatThread() {
   // Access the thread and messages data from the loader
@@ -184,38 +192,16 @@ export default function ChatThread() {
   // Access the action result (success or error)
   const actionData = useActionData();
 
-  const navigation = useNavigation();
-
-  // Create an array to display, starting with messages from the database
-  let displayMessages = [...messages];
-
-  // If a form is being submitted and it has a "message" field,
-  // add it optimistically to the display
-  if (navigation.formData?.has("message")) {
-    // Create an optimistic user message
-    const optimisticUserMessage = {
-      id: "optimistic-user",
-      type: "user",
-      content: navigation.formData.get("message"),
-    };
-
-    // Create an optimistic bot "thinking" message
-    const optimisticBotMessage = {
-      id: "optimistic-bot",
-      type: "bot",
-      content: "AI is thinking...",
-    };
-
-    // Add both messages to the display array
-    displayMessages.push(optimisticUserMessage, optimisticBotMessage);
-  }
-
   return (
     <main className="chat-container">
+      <Outlet />
       <div className="chat-thread-header">
         <h2>{thread.title}</h2>
+        <Link to="edit" className="thread-title-edit-link">
+          Edit
+        </Link>
       </div>
-      <ChatMessages messages={displayMessages} />
+      <ChatMessages messages={messages} />
       <ChatInput />
       {actionData?.error && (
         <div className="error-message">{actionData.error}</div>

@@ -24,114 +24,12 @@ app.use(express.json());
 
 // ========== Define API Endpoints ========== //
 
-app.post("/api/test-groq", async (req, res) => {
-  try {
-    // Get the Mistral API key from environment variables
-    const apiKey = process.env.GROQ_API_KEY;
-
-    // Validate that the API key is configured
-    if (!apiKey) {
-      return res.status(500).json({
-        error:
-          "Groq API key not configured. Please set MISTRAL_API_KEY in your .env file",
-      });
-    }
-
-    // Call the Mistral API using fetch
-    // Note: fetch() works the same way in Node.js as it does in the browser!
-    const groqResponse = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-oss-20b",
-          messages: [
-            {
-              role: "user",
-              content: "Hello! Please respond with a short greeting.",
-            },
-          ],
-        }),
-      },
-    );
-
-    // Check if the request was successful
-    if (!groqResponse.ok) {
-      const errorData = await groqResponse.json();
-      console.error("groq API error:", errorData);
-      return res.status(groqResponse.status).json({
-        error: "Failed to get response from Groq API",
-        details: errorData,
-      });
-    }
-
-    // Parse the response
-    const data = await groqResponse.json();
-
-    // Return the full response for testing
-    res.json({
-      message: "Successfully connected to Groq API!",
-      response: data,
-    });
-  } catch (error) {
-    console.error("Error testing Groq API:", error);
-    res.status(500).json({
-      error: "Failed to test Groq API",
-      details: error.message,
-    });
-  }
-});
-
 // Root endpoint - verify server is running
 app.get("/", (req, res) => {
   res.json({
     message: "Chatbot API Server 🤖",
     version: "1.0.0",
   });
-});
-
-// CREATE A NEW THREAD
-app.post("/api/threads", async (req, res) => {
-  try {
-    const { title, content } = req.body;
-    const threadTitle = title ? title.trim() : "New Chat";
-
-    const threads = await sql`
-      INSERT INTO threads (title)
-      VALUES (${threadTitle})
-      RETURNING id, title, created_at
-    `;
-    const newThread = threads[0];
-
-    // If the frontend also sends the first message when creating a thread:
-    if (content && content.trim().length > 0) {
-      await sql`
-        INSERT INTO messages (thread_id, type, content)
-        VALUES (${newThread.id}, 'user', ${content.trim()})
-      `;
-    }
-
-    res.status(201).json(newThread);
-  } catch (error) {
-    console.error("Error creating thread:", error);
-    res.status(500).json({ error: "Failed to create thread" });
-  }
-});
-
-// DELETE A THREAD
-app.delete("/api/threads/:id", async (req, res) => {
-  try {
-    const threadId = req.params.id;
-    await sql`DELETE FROM threads WHERE id = ${threadId}`;
-    res.status(204).send();
-  } catch (error) {
-    console.error("Error deleting thread:", error);
-    res.status(500).json({ error: "Failed to delete thread" });
-  }
 });
 
 /**
@@ -247,7 +145,7 @@ app.get("/api/threads/:id/messages", async (req, res) => {
 
     // Fetch all messages for this thread
     // Filter by thread_id foreign key and sort chronologically
-    const userMessages = await sql`
+    const messages = await sql`
       SELECT id, thread_id, type, content, created_at 
       FROM messages 
       WHERE thread_id = ${threadId}
@@ -257,7 +155,7 @@ app.get("/api/threads/:id/messages", async (req, res) => {
     // Return messages array (empty array if no messages yet)
     // Unlike single thread endpoint, we don't 404 for empty results
     // An empty thread is valid - it just has no messages yet
-    res.json(userMessages);
+    res.json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);
     res.status(500).json({
@@ -317,97 +215,209 @@ app.post("/api/threads/:id/messages", async (req, res) => {
 
     // Insert the new message
     // RETURNING * gives us back the inserted row (including generated id and created_at)
-    const userMessages = await sql`
+    const messages = await sql`
       INSERT INTO messages (thread_id, type, content)
       VALUES (${threadId}, ${type}, ${trimmedContent})
       RETURNING id, thread_id, type, content, created_at
     `;
 
-    const userMessage = userMessages[0];
-
-    // STEP 2: Fetch all messages in this thread to provide context to the AI
-    // We need the full conversation history so the AI understands the context
-    const allMessages = await sql`
-      SELECT id, thread_id, type, content, created_at 
-      FROM messages 
-      WHERE thread_id = ${threadId}
-      ORDER BY created_at ASC
-    `;
-
-    // STEP 3: Format messages for Mistral API
-    // Mistral expects: [{ role: "user" | "assistant", content: "..." }]
-    // Our database uses: { type: "user" | "bot", content: "..." }
-    // We need to translate 'bot' → 'assistant' for the API
-    const groqMessages = allMessages.map((msg) => ({
-      role: msg.type === "bot" ? "assistant" : "user",
-      content: msg.content,
-    }));
-
-    const systemPrompt = {
-      role: "system",
-      content:
-        "You are a helpful and friendly AI assistant. Keep your responses concise, clear, and conversational. If you don't know something, admit it honestly. Be encouraging and supportive in your tone.",
-    };
-
-    // Prepend the system prompt to the messages array
-    // System messages should come first to set the context for the entire conversation
-    groqMessages.unshift(systemPrompt);
-
-    // STEP 4: Call Mistral API to generate a response
-    const apiKey = process.env.GROQ_API_KEY;
-
-    if (!apiKey) {
-      console.error("Mistral API key not configured");
-      return res.status(201).json(userMessage);
-    }
-
-    const groqResponse = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-oss-20b",
-          messages: groqMessages,
-        }),
-      },
-    );
-
-    // Check if the Mistral API request was successful
-    if (!groqResponse.ok) {
-      const errorData = await groqResponse.json();
-      console.error("Mistral API error:", errorData);
-      // Return the user message even if AI generation fails
-      return res.status(201).json(userMessage);
-    }
-
-    // Parse the AI response
-    const aiData = await groqResponse.json();
-    const aiContent = aiData.choices[0].message.content;
-
-    // STEP 5: Save the AI's response to the database
-    // Note: We use type 'bot' in our database (not 'assistant')
-    const botMessages = await sql`
-      INSERT INTO messages (thread_id, type, content)
-      VALUES (${threadId}, 'bot', ${aiContent})
-      RETURNING id, thread_id, type, content, created_at
-    `;
-
-    const botMessage = botMessages[0];
-
-    // STEP 6: Return both the user's message and the AI's response
-    // This allows the frontend to display both immediately without another request
-    res.status(201).json({
-      userMessage: userMessage,
-      botMessage: botMessage,
-    });
+    // Return the created message with 201 Created status
+    res.status(201).json(messages[0]);
   } catch (error) {
     console.error("Error creating message:", error);
     res.status(500).json({
       error: "Failed to create message",
+    });
+  }
+});
+
+/**
+ * POST /api/threads
+ *
+ * Creates a new thread with an initial message.
+ * This is a compound operation that performs two inserts in sequence.
+ *
+ * SQL Concepts:
+ * - SEQUENTIAL INSERTS: Thread must be created first to get its ID
+ * - RETURNING clause: Get the created thread's ID for the message insert
+ * - FOREIGN KEY: Message references the newly created thread
+ * - TRANSACTION SEMANTICS: Both inserts should succeed or neither should
+ *
+ * API Concepts:
+ * - COMPOUND OPERATION: Creates multiple related resources in one request
+ * - 201 Created: Appropriate status for resource creation
+ * - Business Logic: A new chat always starts with a message
+ * - Request Body: Requires both title and initial message content
+ *
+ * Design Decision:
+ * This endpoint combines thread and message creation into a single request
+ * because it matches the business logic (a chat thread always starts with
+ * a message). An alternative would be separate endpoints, but that would
+ * require two HTTP requests and expose an inconsistent state.
+ */
+app.post("/api/threads", async (req, res) => {
+  try {
+    const { title, content } = req.body;
+
+    // Validate required fields
+    if (!title || !content) {
+      return res.status(400).json({
+        error: "Both 'title' and 'content' are required",
+      });
+    }
+
+    // Validate title is not empty after trimming
+    const trimmedTitle = title.trim();
+    if (trimmedTitle.length === 0) {
+      return res.status(400).json({
+        error: "Title cannot be empty",
+      });
+    }
+
+    // Validate content is not empty after trimming
+    const trimmedContent = content.trim();
+    if (trimmedContent.length === 0) {
+      return res.status(400).json({
+        error: "Content cannot be empty",
+      });
+    }
+
+    // Step 1: Create the thread
+    // Use RETURNING to get the generated ID for the next insert
+    const threads = await sql`
+      INSERT INTO threads (title)
+      VALUES (${trimmedTitle})
+      RETURNING id, title, created_at
+    `;
+
+    const thread = threads[0];
+
+    // Step 2: Create the first message in the new thread
+    // Use the thread ID from the previous insert
+    const messages = await sql`
+      INSERT INTO messages (thread_id, type, content)
+      VALUES (${thread.id}, 'user', ${trimmedContent})
+      RETURNING id, thread_id, type, content, created_at
+    `;
+
+    // Return both the thread and the initial message with 201 Created status
+    // This gives the frontend everything it needs to navigate to the new thread
+    res.status(201).json({
+      thread: thread,
+      message: messages[0],
+    });
+  } catch (error) {
+    console.error("Error creating thread:", error);
+    res.status(500).json({
+      error: "Failed to create thread",
+    });
+  }
+});
+
+/**
+ * PATCH /api/threads/:id
+ *
+ * Updates a thread's title.
+ * This is a partial update - only the title field is modified.
+ *
+ * SQL Concepts:
+ * - UPDATE statement: Modifies existing rows in a table
+ * - WHERE clause: Specifies which row(s) to update
+ * - RETURNING clause: Returns the updated row to confirm the change
+ * - Partial updates: Only specified columns are modified, others remain unchanged
+ *
+ * API Concepts:
+ * - PATCH vs PUT: PATCH updates specific fields, PUT replaces entire resource
+ * - 200 OK: Success status for updates (resource still exists at same URI)
+ * - 404 Not Found: Thread doesn't exist
+ * - 400 Bad Request: Invalid input data
+ * - Idempotency: Calling PATCH multiple times with same data has same effect
+ *
+ * HTTP Method Choice:
+ * We use PATCH because we're only updating the title field. If we were
+ * replacing the entire thread resource, we would use PUT instead.
+ */
+app.patch("/api/threads/:id", async (req, res) => {
+  try {
+    // Extract the thread ID from the URL parameters
+    const threadId = req.params.id;
+
+    // Extract the new title from the request body
+    const { title } = req.body;
+
+    // Validate that title is provided
+    if (!title) {
+      return res.status(400).json({
+        error: "Title is required",
+      });
+    }
+
+    // Validate title is not empty after trimming
+    const trimmedTitle = title.trim();
+    if (trimmedTitle.length === 0) {
+      return res.status(400).json({
+        error: "Title cannot be empty",
+      });
+    }
+
+    // Update the thread in the database
+    // Only the title field is modified, other fields (created_at) remain unchanged
+    const result = await sql`
+      UPDATE threads
+      SET title = ${trimmedTitle}
+      WHERE id = ${threadId}
+      RETURNING id, title, created_at
+    `;
+
+    // If no thread was updated, it means the thread doesn't exist
+    if (result.length === 0) {
+      return res.status(404).json({
+        error: "Thread not found",
+      });
+    }
+
+    // Return the updated thread with 200 OK status
+    res.json(result[0]);
+  } catch (error) {
+    console.error("Error updating thread:", error);
+    res.status(500).json({
+      error: "Failed to update thread",
+    });
+  }
+});
+
+// ========== DELETE an existing thread ========== //
+// DELETE /api/threads/:id - Delete a thread by ID
+app.delete("/api/threads/:id", async (req, res) => {
+  try {
+    // Extract the thread ID from the URL parameters
+    const threadId = req.params.id;
+
+    // Delete the thread from the database
+    // Note: This will automatically delete all associated messages
+    // because of the ON DELETE CASCADE constraint on the messages table
+    const result = await sql`
+      DELETE FROM threads
+      WHERE id = ${threadId}
+      RETURNING id
+    `;
+
+    // If no thread was deleted, it means the thread doesn't exist
+    if (result.length === 0) {
+      return res.status(404).json({
+        error: "Thread not found",
+      });
+    }
+
+    // Return success message
+    res.json({
+      message: "Thread deleted successfully",
+      deletedId: result[0].id,
+    });
+  } catch (error) {
+    console.error("Error deleting thread:", error);
+    res.status(500).json({
+      error: "Failed to delete thread",
     });
   }
 });
