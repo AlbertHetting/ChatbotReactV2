@@ -5,6 +5,7 @@ import {
   Link,
   useRouteLoaderData,
 } from "react-router";
+import { apiFetch } from "../lib/apiFetch.js";
 
 /**
  * Edit Thread Title Route Component
@@ -68,14 +69,13 @@ export default function ChatThreadEdit() {
  * 2. VALIDATION: Check that title is not empty
  * 3. REDIRECT: Navigate back to thread view on success
  * 4. ERROR HANDLING: Return errors to display in UI
+ * 5. AUTHENTICATED REQUESTS: Uses apiFetch to include JWT token
  *
  * The action runs:
  * - When the Form with method="post" is submitted
  * - Returns redirect to parent route on success
  */
 export async function clientAction({ params, request }) {
-  const apiUrl = import.meta.env.VITE_API_URL;
-
   // Extract form data
   const formData = await request.formData();
   const title = formData.get("title");
@@ -87,7 +87,8 @@ export async function clientAction({ params, request }) {
 
   try {
     // PATCH to our custom API to update the thread title
-    const response = await fetch(`${apiUrl}/api/threads/${params.threadId}`, {
+    // apiFetch automatically includes the JWT token and handles the base URL
+    const response = await apiFetch(`/api/threads/${params.threadId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",

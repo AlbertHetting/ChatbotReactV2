@@ -1,3 +1,32 @@
+/**
+ * Login Route
+ *
+ * This route allows existing users to log in with their email and password.
+ *
+ * Authentication Flow:
+ * 1. User enters email and password in the form
+ * 2. Form submits to clientAction
+ * 3. clientAction calls Supabase Auth API (supabase.auth.signInWithPassword)
+ * 4. Supabase verifies the password against the stored hash
+ * 5. If correct, Supabase generates a JWT (JSON Web Token)
+ * 6. Supabase stores the JWT in localStorage automatically
+ * 7. User is redirected to home page
+ * 8. If incorrect, an error message is displayed
+ *
+ * What Happens Behind the Scenes:
+ * - Supabase retrieves the password hash from the database
+ * - Compares the entered password with the stored hash using bcrypt
+ * - If they match, creates a signed JWT containing user info
+ * - JWT is stored in localStorage under key "sb-<project-ref>-auth-token"
+ *
+ * JWT (JSON Web Token):
+ * - A secure way to transmit user information
+ * - Contains: user ID, email, expiration time, and more
+ * - Signed with a secret key so it can't be tampered with
+ * - You can decode JWTs at https://jwt.io to see what's inside
+ * - Try it: After logging in, copy your token from localStorage and paste it at jwt.io!
+ */
+
 import {
   Form,
   Link,

@@ -7,6 +7,7 @@ import {
   Outlet,
 } from "react-router";
 import { ChatMessages, ChatInput } from "../components/Chat.jsx";
+import { apiFetch } from "../lib/apiFetch.js";
 
 /**
  * ERROR BOUNDARY COMPONENT
@@ -56,6 +57,7 @@ export function ErrorBoundary() {
  * 3. MULTIPLE API CALLS: Fetches both thread metadata and messages
  * 4. SERVER-SIDE FILTERING: Our API handles filtering and sorting
  * 5. ERROR HANDLING: Properly handle 404 and other errors
+ * 6. AUTHENTICATED REQUESTS: Uses apiFetch to include JWT token
  *
  * The loader runs:
  * - When you navigate to this route
@@ -63,13 +65,9 @@ export function ErrorBoundary() {
  * - When React Router revalidates data
  */
 export async function clientLoader({ params }) {
-  const apiUrl = import.meta.env.VITE_API_URL;
-
-  // Fetch thread metadata from our API
-  // Our API returns a single object (not an array) for found threads
-  const threadUrl = `${apiUrl}/api/threads/${params.threadId}`;
-
-  const threadResponse = await fetch(threadUrl);
+  // Fetch thread metadata from our API with authentication
+  // apiFetch handles the base URL and adds the JWT token
+  const threadResponse = await apiFetch(`/api/threads/${params.threadId}`);
 
   // Check for 404 specifically - thread doesn't exist
   if (threadResponse.status === 404) {
@@ -84,11 +82,11 @@ export async function clientLoader({ params }) {
   // Our API returns the thread object directly (not in an array)
   const thread = await threadResponse.json();
 
-  // Fetch messages for this thread
+  // Fetch messages for this thread with authentication
   // Our API handles filtering by thread_id and sorting chronologically
-  const messagesUrl = `${apiUrl}/api/threads/${params.threadId}/messages`;
-
-  const messagesResponse = await fetch(messagesUrl);
+  const messagesResponse = await apiFetch(
+    `/api/threads/${params.threadId}/messages`,
+  );
 
   if (!messagesResponse.ok) {
     throw new Error(`Failed to fetch messages: ${messagesResponse.status}`);
@@ -111,14 +109,13 @@ export async function clientLoader({ params }) {
  * 2. POST REQUEST: Send data to our API to create new message
  * 3. AUTOMATIC REVALIDATION: React Router re-runs loader after action completes
  * 4. SERVER-SIDE VALIDATION: Our API validates the data
+ * 5. AUTHENTICATED REQUESTS: Uses apiFetch to include JWT token
  *
  * The action runs:
  * - When a Form with method="post" is submitted
  * - Before the loader re-runs (automatic revalidation)
  */
 export async function clientAction({ params, request }) {
-  const apiUrl = import.meta.env.VITE_API_URL;
-
   // Extract form data from the request
   const formData = await request.formData();
   const content = formData.get("message");
@@ -134,10 +131,11 @@ export async function clientAction({ params, request }) {
     content: content.trim(),
   };
 
-  // POST to our custom API to create the message
+  // POST to our custom API to create the message with authentication
+  // apiFetch automatically includes the JWT token and handles the base URL
   try {
-    const response = await fetch(
-      `${apiUrl}/api/threads/${params.threadId}/messages`,
+    const response = await apiFetch(
+      `/api/threads/${params.threadId}/messages`,
       {
         method: "POST",
         headers: {

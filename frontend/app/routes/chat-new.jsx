@@ -1,5 +1,6 @@
 import { useActionData, redirect } from "react-router";
 import { ChatInput, ChatMessages } from "../components/Chat.jsx";
+import { apiFetch } from "../lib/apiFetch.js";
 
 /**
  * CLIENT ACTION FUNCTION
@@ -10,16 +11,13 @@ import { ChatInput, ChatMessages } from "../components/Chat.jsx";
  * 2. REDIRECT: Navigate to new thread after successful creation
  * 3. TITLE GENERATION: Create thread title from first message
  * 4. ERROR HANDLING: Validate input and handle API errors
- * 5. SIMPLIFIED REQUEST: No authentication headers needed with our API
+ * 5. AUTHENTICATED REQUESTS: Uses apiFetch to include JWT token
  *
  * The action runs:
  * - When a Form with method="post" is submitted
  * - Returns a redirect to navigate to the new thread
  */
 export async function clientAction({ request }) {
-  // Get our API URL from environment variables
-  const apiUrl = import.meta.env.VITE_API_URL;
-
   // Extract form data
   const formData = await request.formData();
   const content = formData.get("message");
@@ -38,7 +36,8 @@ export async function clientAction({ request }) {
   try {
     // Create the thread with its first message in a single request
     // Our custom API handles both operations as a compound mutation
-    const response = await fetch(`${apiUrl}/api/threads`, {
+    // apiFetch automatically includes the JWT token and handles the base URL
+    const response = await apiFetch("/api/threads", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
