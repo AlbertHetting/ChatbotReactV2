@@ -98,6 +98,18 @@ Implement the client-side authentication layer by automatically including JWT to
 
 **Skills**: Wrapper functions, Bearer token authentication, Authorization headers, DRY principle, session management, logout functionality, useEffect hook, Supabase session API
 
+### Step 16: Backend Authentication Enforcement - [PR #16 tutorial](https://github.com/bewildergeist/chatbot-react-postgres/pull/16)
+
+Implement server-side authentication by verifying JWT tokens on the backend. Install the Supabase client library in your Express API, create a `requireAuth` middleware that validates tokens, and protect all API endpoints. Learn the middleware pattern in Express, understand how JWT verification works, explore Bearer token authentication, and see 401 Unauthorized responses in action. The frontend already sends tokens (from PR #15), so the app works seamlessly for logged-in users while blocking unauthenticated access.
+
+**Skills**: JWT token verification, Express middleware pattern, Bearer tokens, authentication enforcement, 401 status codes, middleware execution order, server-side security
+
+### Step 17: Authorization - User Data Isolation - [PR #17 tutorial](https://github.com/bewildergeist/chatbot-react-postgres/pull/17)
+
+Implement authorization to ensure users can only access and modify their own data. Add a `user_id` column to the threads table to establish data ownership, then protect all API endpoints with authorization checks. Learn the critical difference between authentication (who you are) and authorization (what you can access), implement query-level security with WHERE clauses, create database migrations for existing deployments, and apply security best practices like using 404 responses to prevent information leakage. Transform your application from one where any logged-in user can see everything to complete data isolation where each user has their own private space.
+
+**Skills**: Authorization vs authentication, data ownership models, foreign key relationships, query-level security, database migrations, SQL WHERE clauses, security best practices, data isolation, 404 vs 403 responses
+
 ---
 
 ## Screencast of the chatbot in action
