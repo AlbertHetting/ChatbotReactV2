@@ -116,7 +116,7 @@ app.get(
       // Execute SQL query with WHERE clause
       // The ${threadId} is safely parameterized by the postgres library
       const threads = await sql`
-      SELECT id, title, user_id created_at 
+      SELECT id, title, user_id, created_at 
       FROM threads 
       WHERE id = ${threadId} AND user_id = ${req.userId}
     `;
@@ -167,18 +167,26 @@ app.get(
     try {
       const threadId = req.params.id;
 
+      const threads = await sql`
+        SELECT id
+        FROM threads
+        WHERE id = ${threadId} AND user_id = ${req.userId}
+      `;
+
+      if (threads.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Thread not found" });
+      }
+
       // Fetch all messages for this thread
       // Filter by thread_id foreign key and sort chronologically
       const messages = await sql`
-      SELECT id, thread_id, type, content, user_id created_at 
-      FROM messages 
-      WHERE thread_id = ${threadId} AND user_id = ${userId}
+      SELECT id, thread_id, type, content, created_at
+      FROM messages                                             
+      WHERE thread_id = ${threadId}
       ORDER BY created_at ASC
     `;
-
-      if (threads.length === 0) {
-        return res.json([]);
-      }
 
       // Return messages array (empty array if no messages yet)
       // Unlike single thread endpoint, we don't 404 for empty results
@@ -253,10 +261,16 @@ app.post(
       // Insert the new message
       // RETURNING * gives us back the inserted row (including generated id and created_at)
       const messages = await sql`
-      INSERT INTO messages (thread_id, type, content)
-      VALUES (${threadId}, ${type}, ${trimmedContent})
+      INSERT INTO messages (thread_id, type, content, user_id)
+      VALUES (${threadId}, ${type}, ${trimmedContent}, ${req.userId})
       RETURNING id, thread_id, type, content, created_at
     `;
+
+      if (owned.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Thread not found" });
+      }
 
       // Return the created message with 201 Created status
       res.status(201).json(messages[0]);
