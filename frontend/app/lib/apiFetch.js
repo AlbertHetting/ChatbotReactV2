@@ -29,6 +29,7 @@
  */
 
 import { supabase } from "./supabase.js";
+import redirect from "react-router";
 
 /**
  * apiFetch - Fetch wrapper with automatic authentication
@@ -64,6 +65,14 @@ export async function apiFetch(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const response = await fetch(`${apiUrl}${path}`, { ...options, headers });
+
+  const currentPath = params.request.url; // Get the current request URL
+
+  if (response.status === 401) {
+    const currentPath = window.location.pathname + window.location.search;
+    throw redirect(`/login?redirect=${encodeURIComponent(currentPath)}`);
+  }
   // Make the request with the standard fetch() function
   // Spread the original options and override headers
   return fetch(url, {

@@ -98,6 +98,12 @@ Implement the client-side authentication layer by automatically including JWT to
 
 **Skills**: Wrapper functions, Bearer token authentication, Authorization headers, DRY principle, session management, logout functionality, useEffect hook, Supabase session API
 
+### Step 16: Backend Authentication Enforcement - [PR #16 tutorial](https://github.com/bewildergeist/chatbot-react-postgres/pull/16)
+
+Implement server-side authentication by verifying JWT tokens on the backend. Install the Supabase client library in your Express API, create a `requireAuth` middleware that validates tokens, and protect all API endpoints. Learn the middleware pattern in Express, understand how JWT verification works, explore Bearer token authentication, and see 401 Unauthorized responses in action. The frontend already sends tokens (from PR #15), so the app works seamlessly for logged-in users while blocking unauthenticated access.
+
+**Skills**: JWT token verification, Express middleware pattern, Bearer tokens, authentication enforcement, 401 status codes, middleware execution order, server-side security
+
 ---
 
 ## Screencast of the chatbot in action

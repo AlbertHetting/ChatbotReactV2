@@ -82,6 +82,7 @@ export default function Login() {
   // Check if user was redirected here after successful registration
   const [searchParams] = useSearchParams();
   const justRegistered = searchParams.get("registered") === "true";
+  const wasRedirected = searchParams.get("redirect");
 
   return (
     <div className="auth-container">
@@ -92,6 +93,12 @@ export default function Login() {
         {justRegistered && (
           <div className="success-message">
             Account created successfully! Please log in.
+          </div>
+        )}
+
+        {wasRedirected && (
+          <div className="info-message">
+            Please log in to access the page you were trying to visit.
           </div>
         )}
 

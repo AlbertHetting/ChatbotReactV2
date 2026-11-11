@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import sql from "./db.js";
+import { requireAuth } from "./auth.js";
 
 // ========== Setup Express App ========== //
 const app = express();
@@ -37,6 +38,11 @@ app.get("/", (req, res) => {
  *
  * Fetches all chat threads from the database, ordered by creation date (newest first).
  *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 for filtering)
+ *
  * SQL Concepts:
  * - SELECT: Retrieve data from the database
  * - Specific columns: Only fetch the columns we need (id, title, created_at)
@@ -49,15 +55,16 @@ app.get("/", (req, res) => {
  * - Status codes: 200 for success, 500 for server errors
  * - JSON response: Return data in a format the frontend can use
  */
-app.get("/api/threads", async (req, res) => {
+app.get("/api/threads", requireAuth, async (req, res) => {
   try {
     // Execute SQL query using the sql`` tagged template
+    // i GET /api/threads
     const threads = await sql`
-      SELECT id, title, created_at 
-      FROM threads 
-      ORDER BY created_at DESC
-    `;
-
+    SELECT id, title, user_id, created_at
+    FROM threads
+    WHERE user_id = ${req.userId}
+    ORDER BY created_at DESC
+  `;
     // Return the threads as JSON
     // Express automatically sets Content-Type: application/json
     res.json(threads);
@@ -78,6 +85,11 @@ app.get("/api/threads", async (req, res) => {
  *
  * Fetches a single thread by its ID.
  *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 for authorization)
+ *
  * SQL Concepts:
  * - WHERE clause: Filter results to match a specific condition
  * - Parameterized queries: Safely include user input in SQL queries
@@ -92,42 +104,51 @@ app.get("/api/threads", async (req, res) => {
  * - Tagged template (sql``) prevents SQL injection
  * - Even with user input, the query is safe from malicious SQL
  */
-app.get("/api/threads/:id", async (req, res) => {
-  try {
-    // Extract the thread ID from the URL
-    // For /api/threads/123, req.params.id will be "123"
-    const threadId = req.params.id;
+app.get(
+  "/api/threads/:id",
+  requireAuth,
+  async (req, res) => {
+    try {
+      // Extract the thread ID from the URL
+      // For /api/threads/123, req.params.id will be "123"
+      const threadId = req.params.id;
 
-    // Execute SQL query with WHERE clause
-    // The ${threadId} is safely parameterized by the postgres library
-    const threads = await sql`
-      SELECT id, title, created_at 
+      // Execute SQL query with WHERE clause
+      // The ${threadId} is safely parameterized by the postgres library
+      const threads = await sql`
+      SELECT id, title, user_id created_at 
       FROM threads 
-      WHERE id = ${threadId}
+      WHERE id = ${threadId} AND user_id = ${req.userId}
     `;
 
-    // Check if thread was found
-    // SQL returns an empty array if no matches
-    if (threads.length === 0) {
-      return res.status(404).json({
-        error: "Thread not found",
+      // Check if thread was found
+      // SQL returns an empty array if no matches
+      if (threads.length === 0) {
+        return res.status(404).json({
+          error: "Thread not found",
+        });
+      }
+
+      // Return the first (and only) thread
+      res.json(threads[0]);
+    } catch (error) {
+      console.error("Error fetching thread:", error);
+      res.status(500).json({
+        error: "Failed to fetch thread from database",
       });
     }
-
-    // Return the first (and only) thread
-    res.json(threads[0]);
-  } catch (error) {
-    console.error("Error fetching thread:", error);
-    res.status(500).json({
-      error: "Failed to fetch thread from database",
-    });
-  }
-});
+  },
+);
 
 /**
  * GET /api/threads/:id/messages
  *
  * Fetches all messages for a specific thread, ordered chronologically.
+ *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 for authorization)
  *
  * SQL Concepts:
  * - WHERE with foreign key: Filter messages by their thread_id
@@ -139,35 +160,48 @@ app.get("/api/threads/:id", async (req, res) => {
  * - RESTful routing: /resource/:id/sub-resource pattern
  * - Chronological ordering: Natural order for chat messages
  */
-app.get("/api/threads/:id/messages", async (req, res) => {
-  try {
-    const threadId = req.params.id;
+app.get(
+  "/api/threads/:id/messages",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const threadId = req.params.id;
 
-    // Fetch all messages for this thread
-    // Filter by thread_id foreign key and sort chronologically
-    const messages = await sql`
-      SELECT id, thread_id, type, content, created_at 
+      // Fetch all messages for this thread
+      // Filter by thread_id foreign key and sort chronologically
+      const messages = await sql`
+      SELECT id, thread_id, type, content, user_id created_at 
       FROM messages 
-      WHERE thread_id = ${threadId}
+      WHERE thread_id = ${threadId} AND user_id = ${userId}
       ORDER BY created_at ASC
     `;
 
-    // Return messages array (empty array if no messages yet)
-    // Unlike single thread endpoint, we don't 404 for empty results
-    // An empty thread is valid - it just has no messages yet
-    res.json(messages);
-  } catch (error) {
-    console.error("Error fetching messages:", error);
-    res.status(500).json({
-      error: "Failed to fetch messages from database",
-    });
-  }
-});
+      if (threads.length === 0) {
+        return res.json([]);
+      }
+
+      // Return messages array (empty array if no messages yet)
+      // Unlike single thread endpoint, we don't 404 for empty results
+      // An empty thread is valid - it just has no messages yet
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({
+        error: "Failed to fetch messages from database",
+      });
+    }
+  },
+);
 
 /**
  * POST /api/threads/:id/messages
  *
  * Creates a new message in a thread.
+ *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 for authorization)
  *
  * SQL Concepts:
  * - INSERT INTO: Add new rows to a table
@@ -186,56 +220,65 @@ app.get("/api/threads/:id/messages", async (req, res) => {
  * - Parameterized queries prevent SQL injection
  * - Return helpful error messages without exposing internals
  */
-app.post("/api/threads/:id/messages", async (req, res) => {
-  try {
-    const threadId = req.params.id;
-    const { type, content } = req.body;
+app.post(
+  "/api/threads/:id/messages",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const threadId = req.params.id;
+      const { type, content } = req.body;
 
-    // Validate required fields
-    if (!type || !content) {
-      return res.status(400).json({
-        error: "Both 'type' and 'content' are required",
-      });
-    }
+      // Validate required fields
+      if (!type || !content) {
+        return res.status(400).json({
+          error: "Both 'type' and 'content' are required",
+        });
+      }
 
-    // Validate type is either 'user' or 'bot'
-    if (type !== "user" && type !== "bot") {
-      return res.status(400).json({
-        error: "Type must be either 'user' or 'bot'",
-      });
-    }
+      // Validate type is either 'user' or 'bot'
+      if (type !== "user" && type !== "bot") {
+        return res.status(400).json({
+          error: "Type must be either 'user' or 'bot'",
+        });
+      }
 
-    // Validate content is not empty after trimming
-    const trimmedContent = content.trim();
-    if (trimmedContent.length === 0) {
-      return res.status(400).json({
-        error: "Content cannot be empty",
-      });
-    }
+      // Validate content is not empty after trimming
+      const trimmedContent = content.trim();
+      if (trimmedContent.length === 0) {
+        return res.status(400).json({
+          error: "Content cannot be empty",
+        });
+      }
 
-    // Insert the new message
-    // RETURNING * gives us back the inserted row (including generated id and created_at)
-    const messages = await sql`
+      // Insert the new message
+      // RETURNING * gives us back the inserted row (including generated id and created_at)
+      const messages = await sql`
       INSERT INTO messages (thread_id, type, content)
       VALUES (${threadId}, ${type}, ${trimmedContent})
       RETURNING id, thread_id, type, content, created_at
     `;
 
-    // Return the created message with 201 Created status
-    res.status(201).json(messages[0]);
-  } catch (error) {
-    console.error("Error creating message:", error);
-    res.status(500).json({
-      error: "Failed to create message",
-    });
-  }
-});
+      // Return the created message with 201 Created status
+      res.status(201).json(messages[0]);
+    } catch (error) {
+      console.error("Error creating message:", error);
+      res.status(500).json({
+        error: "Failed to create message",
+      });
+    }
+  },
+);
 
 /**
  * POST /api/threads
  *
  * Creates a new thread with an initial message.
  * This is a compound operation that performs two inserts in sequence.
+ *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 to set thread owner)
  *
  * SQL Concepts:
  * - SEQUENTIAL INSERTS: Thread must be created first to get its ID
@@ -255,7 +298,7 @@ app.post("/api/threads/:id/messages", async (req, res) => {
  * a message). An alternative would be separate endpoints, but that would
  * require two HTTP requests and expose an inconsistent state.
  */
-app.post("/api/threads", async (req, res) => {
+app.post("/api/threads", requireAuth, async (req, res) => {
   try {
     const { title, content } = req.body;
 
@@ -285,8 +328,8 @@ app.post("/api/threads", async (req, res) => {
     // Step 1: Create the thread
     // Use RETURNING to get the generated ID for the next insert
     const threads = await sql`
-      INSERT INTO threads (title)
-      VALUES (${trimmedTitle})
+      INSERT INTO threads (title, user_id)
+      VALUES (${trimmedTitle}, ${req.userId})
       RETURNING id, title, created_at
     `;
 
@@ -320,6 +363,11 @@ app.post("/api/threads", async (req, res) => {
  * Updates a thread's title.
  * This is a partial update - only the title field is modified.
  *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 for authorization)
+ *
  * SQL Concepts:
  * - UPDATE statement: Modifies existing rows in a table
  * - WHERE clause: Specifies which row(s) to update
@@ -337,92 +385,110 @@ app.post("/api/threads", async (req, res) => {
  * We use PATCH because we're only updating the title field. If we were
  * replacing the entire thread resource, we would use PUT instead.
  */
-app.patch("/api/threads/:id", async (req, res) => {
-  try {
-    // Extract the thread ID from the URL parameters
-    const threadId = req.params.id;
+app.patch(
+  "/api/threads/:id",
+  requireAuth,
+  async (req, res) => {
+    try {
+      // Extract the thread ID from the URL parameters
+      const threadId = req.params.id;
 
-    // Extract the new title from the request body
-    const { title } = req.body;
+      // Extract the new title from the request body
+      const { title } = req.body;
 
-    // Validate that title is provided
-    if (!title) {
-      return res.status(400).json({
-        error: "Title is required",
-      });
-    }
+      // Validate that title is provided
+      if (!title) {
+        return res.status(400).json({
+          error: "Title is required",
+        });
+      }
 
-    // Validate title is not empty after trimming
-    const trimmedTitle = title.trim();
-    if (trimmedTitle.length === 0) {
-      return res.status(400).json({
-        error: "Title cannot be empty",
-      });
-    }
+      // Validate title is not empty after trimming
+      const trimmedTitle = title.trim();
+      if (trimmedTitle.length === 0) {
+        return res.status(400).json({
+          error: "Title cannot be empty",
+        });
+      }
 
-    // Update the thread in the database
-    // Only the title field is modified, other fields (created_at) remain unchanged
-    const result = await sql`
+      // Update the thread in the database
+      // Only the title field is modified, other fields (created_at) remain unchanged
+      const result = await sql`
       UPDATE threads
       SET title = ${trimmedTitle}
-      WHERE id = ${threadId}
-      RETURNING id, title, created_at
+      WHERE id = ${threadId} AND user_id = ${req.userId}
+      RETURNING id, title, created_at, user_id
     `;
 
-    // If no thread was updated, it means the thread doesn't exist
-    if (result.length === 0) {
-      return res.status(404).json({
-        error: "Thread not found",
+      // If no thread was updated, it means the thread doesn't exist
+      if (result.length === 0) {
+        return res.status(404).json({
+          error: "Thread not found",
+        });
+      }
+
+      // Return the updated thread with 200 OK status
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error updating thread:", error);
+      res.status(500).json({
+        error: "Failed to update thread",
       });
     }
+  },
+);
 
-    // Return the updated thread with 200 OK status
-    res.json(result[0]);
-  } catch (error) {
-    console.error("Error updating thread:", error);
-    res.status(500).json({
-      error: "Failed to update thread",
-    });
-  }
-});
+/**
+ * DELETE /api/threads/:id
+ *
+ * Delete a thread by ID.
+ *
+ * Authentication:
+ * - Protected by requireAuth middleware
+ * - Requires valid JWT token in Authorization header
+ * - req.userId is available (will be used in PR #17 for authorization)
+ */
+app.delete(
+  "/api/threads/:id",
+  requireAuth,
+  async (req, res) => {
+    try {
+      // Extract the thread ID from the URL parameters
+      const threadId = req.params.id;
 
-// ========== DELETE an existing thread ========== //
-// DELETE /api/threads/:id - Delete a thread by ID
-app.delete("/api/threads/:id", async (req, res) => {
-  try {
-    // Extract the thread ID from the URL parameters
-    const threadId = req.params.id;
-
-    // Delete the thread from the database
-    // Note: This will automatically delete all associated messages
-    // because of the ON DELETE CASCADE constraint on the messages table
-    const result = await sql`
+      // Delete the thread from the database
+      // Note: This will automatically delete all associated messages
+      // because of the ON DELETE CASCADE constraint on the messages table
+      const result = await sql`
       DELETE FROM threads
-      WHERE id = ${threadId}
+      WHERE id = ${threadId} AND user_id = ${req.userId}
       RETURNING id
     `;
 
-    // If no thread was deleted, it means the thread doesn't exist
-    if (result.length === 0) {
-      return res.status(404).json({
-        error: "Thread not found",
+      // If no thread was deleted, it means the thread doesn't exist
+      if (result.length === 0) {
+        return res.status(404).json({
+          error: "Thread not found",
+        });
+      }
+
+      // Return success message
+      res.json({
+        message: "Thread deleted successfully",
+        deletedId: result[0].id,
+      });
+    } catch (error) {
+      console.error("Error deleting thread:", error);
+      res.status(500).json({
+        error: "Failed to delete thread",
       });
     }
-
-    // Return success message
-    res.json({
-      message: "Thread deleted successfully",
-      deletedId: result[0].id,
-    });
-  } catch (error) {
-    console.error("Error deleting thread:", error);
-    res.status(500).json({
-      error: "Failed to delete thread",
-    });
-  }
-});
+  },
+);
 
 // ========== Start the server ========== //
 app.listen(PORT, () => {
-  console.log(`✅ Server is running on http://localhost:${PORT}`);
+  console.log(
+    `✅ Server is running on http://localhost:${PORT}`,
+  );
 });
